@@ -26,6 +26,7 @@ from scipy.ndimage import zoom
 import SimpleITK as sitk
 from skimage import exposure
 from tqdm import tqdm
+from scipy import signal
 
 
 def contrast_correction(movingNorm, staticNorm, percentile = (2, 98)):
@@ -69,9 +70,36 @@ def norm(A):
         normalized array.
     '''
     return (A - np.min(A))/(np.max(A) - np.min(A))
+
+
+def smooth(data, kernel_size = 7):
+    '''
+    Applies a smoothning filter
+
+    Parameters
+    ----------
+    data : TYPE
+        DESCRIPTION.
+    kernel_size : TYPE, optional
+        DESCRIPTION. The default is 7.
+
+    Returns
+    -------
+    filtered : TYPE
+        DESCRIPTION.
+
+    '''
+    sigma = 1.0     # width of kernel
+    x = np.arange(-int(kernel_size/2),int(kernel_size/2)+int(kernel_size%2),1)   # coordinate arrays -- make sure they contain 0!
+    y = np.arange(-int(kernel_size/2),int(kernel_size/2)+int(kernel_size%2),1)
+    z = np.arange(-int(kernel_size/2),int(kernel_size/2)+int(kernel_size%2),1)
+    xx, yy, zz = np.meshgrid(x,y,z)
+    kernel = np.exp(-(xx**2 + yy**2 + zz**2)/(2*sigma**2))
+    filtered = signal.convolve(data, kernel, mode="same")
+    return filtered
     
     
-def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.nii'):
+def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.nii', add_only = False, blur = None):
     '''
     Average multiple PET snapshots to get an averaged snapshot over the whole timeperiod.
     Parameters
@@ -105,8 +133,11 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
         
     data = np.array(data)
     #print(str(data.shape) + ' -> ', end='')
-    data = np.mean(data,axis=0)
+    if add_only == False:
+        data = np.mean(data,axis=0)
     #print(data.shape)
+    if blur is not None:
+        data = smooth(data,blur)
           
     if out_folder_path is not None:
         img = nib.Nifti1Image(data, affine = np.eye(4))
@@ -567,7 +598,7 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         try:
             PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET))
         except:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'))
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = True, blur = 7)
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
         
         #print('loading T2')
