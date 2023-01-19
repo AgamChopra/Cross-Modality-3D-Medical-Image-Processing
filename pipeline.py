@@ -99,7 +99,7 @@ def smooth(data, kernel_size = 7):
     return filtered
     
     
-def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.nii', add_only = False, blur = None):
+def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.nii', add_only = False):
     '''
     Average multiple PET snapshots to get an averaged snapshot over the whole timeperiod.
     Parameters
@@ -138,8 +138,6 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
     else:
         data = np.sum(data,axis=0)
     #print(data.shape)
-    if blur is not None:
-        data = smooth(data,blur)
           
     if out_folder_path is not None:
         img = nib.Nifti1Image(data, affine = np.eye(4))
@@ -598,9 +596,9 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         #Loading Data
         #print('loading PET')
         try:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = True, blur = 7)
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = True)
         except:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = True, blur = 7)
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = True)
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
         
         #print('loading T2')
@@ -625,6 +623,9 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         PET = resampleA2B(PET,PET_meta.get_zooms()[:-1]) 
         T1 = resampleA2B(T1,T1_meta.get_zooms()[:-1])
         T2 = resampleA2B(T2,T2_meta.get_zooms()[:-1]) 
+        
+        #Smoothn PET scan
+        PET = smooth(PET,7)
         
         #Normalize
         PET, T1, T2 = norm(PET), norm(T1), norm(T2)
