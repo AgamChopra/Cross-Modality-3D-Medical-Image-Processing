@@ -135,6 +135,8 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
     #print(str(data.shape) + ' -> ', end='')
     if add_only == False:
         data = np.mean(data,axis=0)
+    else:
+        data = np.sum(data,axis=0)
     #print(data.shape)
     if blur is not None:
         data = smooth(data,blur)
@@ -596,7 +598,7 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         #Loading Data
         #print('loading PET')
         try:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET))
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = True, blur = 7)
         except:
             PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = True, blur = 7)
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
