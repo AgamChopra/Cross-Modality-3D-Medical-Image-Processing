@@ -58,6 +58,28 @@ def contrast_correction(movingNorm, staticNorm, percentile = (2, 98)):
     return matched, static_rescale
 
 
+def denoise(A,alpha=1E-3):
+    '''
+    De-noise the data
+
+    Parameters
+    ----------
+    A : TYPE
+        DESCRIPTION.
+    alpha : TYPE, optional
+        DESCRIPTION. The default is 1E-3.
+
+    Returns
+    -------
+    A : TYPE
+        DESCRIPTION.
+
+    '''
+    mask = np.where(A > alpha, 1, 0)
+    A *= mask
+    return A
+
+
 def norm(A):
     '''
     Normalize/rescale numpy array to [0,1]
@@ -657,6 +679,9 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         #Reshaping to standard cube for training models
         target_shape = (176,176,176)
         T1,T2,PET = reshapeA2B(T1, target_shape), reshapeA2B(T2, target_shape), reshapeA2B(PET, target_shape)
+        
+        #Remove noise artifacts from preprocessing
+        T1,T2,PET = denoise(T1),denoise(T2),denoise(PET)
         
         #Save preprocessing outputs as NIFTI
         #print('saving...')
