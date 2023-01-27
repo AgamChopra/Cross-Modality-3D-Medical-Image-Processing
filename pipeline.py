@@ -154,15 +154,22 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
         
     data = np.squeeze(np.array(data))
     
-    #co-register data
-    data = np.array([data[0]] + [affine_register(data[0], p) for p in data[1:]])   
     
-    #print(str(data.shape) + ' -> ', end='')
-    if add_only == False:
-        data = np.mean(data,axis=0)
-    else:
-        data = np.sum(data,axis=0)
-    #print(data.shape)
+    #[18F]-AV-1451 PET acquisition (ET: 80-100 min) post injection.
+    #ADNI3 acquires a 30 min dynamic scan consisting of six 5-minute frames. Acquisition starts promptly at 75 minutes post injection. 
+    if len(scans) > 1: # else 1 5m range somewhere within 75-105min
+        #co-register data
+        if len(scans) <= 4:#assuming range within 75-105
+            data = np.array([data[0]] + [affine_register(data[0], p) for p in data[1:]])
+        elif len(scan) < 6:#assuming 80-100 or 85-105
+            data = np.array([data[1]] + [affine_register(data[1], p) for p in data[2:]])
+        else:#range 80-100min
+            data = np.array([data[1]] + [affine_register(data[1], p) for p in data[2:-1]])
+         
+        if add_only == False:
+            data = np.mean(data,axis=0)
+        else:
+            data = np.sum(data,axis=0)
           
     if out_folder_path is not None:
         img = nib.Nifti1Image(data, affine = np.eye(4))
@@ -750,12 +757,13 @@ def generate_address_dict(csv):
     '''
     usable_subjects, _ = get_usable_subjects(csv)    
     data = {}
-    
+    group = []
     for ids in usable_subjects.keys():
         val = {}      
         a = csv.loc[csv['Subject'] == ids].to_numpy()    
         
         for b in a:
+            gp = b[2]
             if b[6] == 'MRI':
                 if 'Sag' in b[7]:
                     if 'Acc' in b[7] and 'ND' not in b[7]:
@@ -767,10 +775,11 @@ def generate_address_dict(csv):
         
         try:
             data[ids] = [val['T1'],val['T2'],val['PET']]
+            group.append(gp)
         except:
             continue
     
-    return data
+    return data,group
 
 
 def get_data_address_list(csv, file_path = 'ad_project/data/initial_only/intial_only/ADNI/'):
@@ -788,7 +797,9 @@ def get_data_address_list(csv, file_path = 'ad_project/data/initial_only/intial_
     data_ : list of lists
         list of relative filepaths extracted from the ADNI3 csv file.
     '''
-    data = generate_address_dict(csv)
+    data,group = generate_address_dict(csv)
+    print(group)
+    print('Total: %d, AD: %d, MCI: %d, CN: %d'%(len(group),sum(np.array(group) == 'AD'),sum(np.array(group) == 'MCI'),sum(np.array(group) == 'CN')))
     keys = data.keys()    
     data_ = []
     
