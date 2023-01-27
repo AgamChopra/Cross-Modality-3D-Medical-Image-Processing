@@ -96,19 +96,19 @@ def norm(A):
 
 def smooth(data, kernel_size = 7):
     '''
-    Applies a smoothning filter
+    Applies a gaussian smoothning filter
 
     Parameters
     ----------
-    data : TYPE
-        DESCRIPTION.
-    kernel_size : TYPE, optional
-        DESCRIPTION. The default is 7.
+    data : numpy array
+        3d input array.
+    kernel_size : int, optional
+        size of the kernel/window size (odd values only). The default is 7.
 
     Returns
     -------
-    filtered : TYPE
-        DESCRIPTION.
+    filtered : numpy array
+        smoothned 3d image.
 
     '''
     sigma = 1.0     # width of kernel
@@ -142,7 +142,6 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
     A = os.path.join(in_folder_path,os.listdir(in_folder_path)[-1])
     B = os.path.join(A, os.listdir(A)[-1])
     scans = os.listdir(B)
-    #print(scans)
     data = []
     meta = []
     
@@ -153,7 +152,11 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
         data.append(dt)
         meta.append(img.header)
         
-    data = np.array(data)
+    data = np.squeeze(np.array(data))
+    
+    #co-register data
+    data = np.array([data[0]] + [affine_register(data[0], p) for p in data[1:]])   
+    
     #print(str(data.shape) + ' -> ', end='')
     if add_only == False:
         data = np.mean(data,axis=0)
@@ -618,9 +621,9 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         #Loading Data
         #print('loading PET')
         try:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = True)
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = False)
         except:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = True)
+            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = False)
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
         
         #print('loading T2')
@@ -662,11 +665,11 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         PET,_ = contrast_correction(PET, T1)
         T1 = T1_
         
-        #Ridgid Registration
+        #Ridgid Registration ###TO DO: RUN MULTIPLE TRIALS WITH DIFFERENT PARAMETERS
         T2 = rigid_register(T1, T2)
         PET = rigid_register(T1, PET)
         
-        #Affine Registration
+        #Affine Registration ###TO DO: RUN MULTIPLE TRIALS WITH DIFFERENT PARAMETERS
         T2 = affine_register(T1, T2)
         PET = affine_register(T1, PET)
         
