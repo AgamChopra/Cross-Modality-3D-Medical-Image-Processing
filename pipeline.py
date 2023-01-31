@@ -139,8 +139,8 @@ def PET_average(in_folder_path,out_folder_path = None,file_name = 'PET_averaged.
     meta : list
         meta data for all pet files.
     '''
-    A = os.path.join(in_folder_path,os.listdir(in_folder_path)[-1])
-    B = os.path.join(A, os.listdir(A)[-1])
+    A = os.path.join(in_folder_path,os.listdir(in_folder_path)[0])
+    B = os.path.join(A, os.listdir(A)[0])
     scans = os.listdir(B)
     data = []
     meta = []
@@ -469,7 +469,7 @@ def reshapeA2B(A, target_shape = (176,176,176)):
     return resampled_A
     
  
-def rigid_register(fixed, moving, prt = False):
+def rigid_register(fixed, moving, prt = False, bins = 50, sp = 0.01):
     '''
     Simple Rigid registration using SimpleITK
     Parameters
@@ -496,9 +496,9 @@ def rigid_register(fixed, moving, prt = False):
     registration_method = sitk.ImageRegistrationMethod()
 
     # Similarity metric settings.
-    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=bins)
     registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
-    registration_method.SetMetricSamplingPercentage(0.01)
+    registration_method.SetMetricSamplingPercentage(sp)
     
     registration_method.SetInterpolator(sitk.sitkNearestNeighbor)
     
@@ -531,7 +531,7 @@ def rigid_register(fixed, moving, prt = False):
     return moving_resampled
  
     
-def affine_register(fixed, moving, prt = False):
+def affine_register(fixed, moving, prt = False, bins = 50, sp = 0.01):
     '''
     Simple Affine registration using SimpleITK
     Parameters
@@ -559,9 +559,9 @@ def affine_register(fixed, moving, prt = False):
     registration_method = sitk.ImageRegistrationMethod()
 
     # Similarity metric settings.
-    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=50)
+    registration_method.SetMetricAsMattesMutualInformation(numberOfHistogramBins=bins)
     registration_method.SetMetricSamplingStrategy(registration_method.RANDOM)
-    registration_method.SetMetricSamplingPercentage(0.01)
+    registration_method.SetMetricSamplingPercentage(sp)
     
     registration_method.SetInterpolator(sitk.sitkNearestNeighbor)
     
@@ -635,18 +635,18 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         
         #print('loading T2')
         A = os.path.join(folder_path,rpath_T2)
-        B = os.path.join(A, os.listdir(A)[-1])
-        C = os.path.join(B, os.listdir(B)[-1])
-        D = os.path.join(C, os.listdir(C)[-1])
+        B = os.path.join(A, os.listdir(A)[0])
+        C = os.path.join(B, os.listdir(B)[0])
+        D = os.path.join(C, os.listdir(C)[0])
         #print(D)
         img = nib.load(D)
         T2, T2_meta = np.squeeze(img.get_fdata()), img.header
         
         #print('loading T1')
         A = os.path.join(folder_path,rpath_T1)
-        B = os.path.join(A, os.listdir(A)[-1])
-        C = os.path.join(B, os.listdir(B)[-1])
-        D = os.path.join(C, os.listdir(C)[-1])
+        B = os.path.join(A, os.listdir(A)[0])
+        C = os.path.join(B, os.listdir(B)[0])
+        D = os.path.join(C, os.listdir(C)[0])
         #print(D)
         img = nib.load(D)
         T1, T1_meta = np.squeeze(img.get_fdata()), img.header
@@ -722,27 +722,11 @@ def get_usable_subjects(csv):
     usable : int
         number of usable subjects.
     '''
-    subject_ids = csv['Subject'].value_counts()
-    usable = 0
-    usable_subjects = {}
-    for sid in subject_ids.keys():
-        if subject_ids[sid] >= 3:
-            modality = csv.loc[csv['Subject'] == sid]['Modality'].value_counts()
-            try:
-                if modality['MRI'] >= 2:
-                    if modality['PET'] >= 1:
-                        if modality['MRI']/modality['PET'] >= 2:
-                            usable += modality['PET'] 
-                            if sid not in usable_subjects:
-                                usable_subjects[sid] = modality['PET']
-                            else:
-                                usable_subjects[sid] += modality['PET']                       
-            except:
-                continue
-    return usable_subjects, usable
+    subjects = np.array(csv['Subject'])
+    return subjects
 
 
-def generate_address_dict(csv):
+def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_folder,PET_folder],...}
     '''
     Generate dictionary of usable patient ids with T1, T2-FLAIR, and PET folders as in the ADNI3 csv file
     **Specific to ADNI3**
@@ -755,34 +739,34 @@ def generate_address_dict(csv):
     data : dictonary
         dictionary of modality file names by patient ids extracted from the ADNI3 csv file.
     '''
-    usable_subjects, _ = get_usable_subjects(csv)    
+    usable_subjects = get_usable_subjects(matched_csv)    
     data = {}
-    group = []
-    for ids in usable_subjects.keys():
+    for ids in usable_subjects:
         val = {}      
-        a = csv.loc[csv['Subject'] == ids].to_numpy()    
+        mri = mri_csv.loc[mri_csv['Subject'] == ids].to_numpy()    
+        pet = pet_csv.loc[pet_csv['Subject'] == ids].to_numpy()    
         
-        for b in a:
-            gp = b[2]
+        for b in mri:
             if b[6] == 'MRI':
                 if 'Sag' in b[7]:
                     if 'Acc' in b[7] and 'ND' not in b[7]:
                         val['T1'] = b[7].replace(' ', '_')             
                     elif 'FLAIR' in b[7]:
-                        val['T2'] = b[7].replace(' ', '_')         
-            elif b[6] == 'PET':
+                        val['T2'] = b[7].replace(' ', '_')   
+                        
+        for b in pet:
+            if b[6] == 'PET':
                 val['PET'] = b[7].replace(':', '_').replace(' ', '_').replace('/','_').replace('(','_').replace(')','_').replace('_Tau','') 
         
         try:
             data[ids] = [val['T1'],val['T2'],val['PET']]
-            group.append(gp)
         except:
             continue
     
-    return data,group
+    return data
 
 
-def get_data_address_list(csv, file_path = 'ad_project/data/initial_only/intial_only/ADNI/'):
+def get_data_address_list(csv=[], mri_path = 'ad_project/data/final_adni/mri/ADNI/', pet_path = 'ad_project/data/final_adni/pet/ADNI/'):
     '''
     Generate list of usable relative data file paths
     **Specific to ADNI3**
@@ -797,45 +781,34 @@ def get_data_address_list(csv, file_path = 'ad_project/data/initial_only/intial_
     data_ : list of lists
         list of relative filepaths extracted from the ADNI3 csv file.
     '''
-    data,group = generate_address_dict(csv)
-    print(group)
-    print('Total: %d, AD: %d, MCI: %d, CN: %d'%(len(group),sum(np.array(group) == 'AD'),sum(np.array(group) == 'MCI'),sum(np.array(group) == 'CN')))
+    data= generate_address_dict(csv[0],csv[1],csv[2])
+    
     keys = data.keys()    
     data_ = []
     
     for pid in keys:
-        temp = []     
-        for d in data[pid]:
-            temp.append(file_path + pid + '/' + d)
+        temp = []  
+        for i in range(len(data[pid])):
+            if i < 2:
+                temp.append(mri_path + pid + '/' + data[pid][i])
+            else:
+                temp.append(pet_path + pid + '/' + data[pid][i])
         data_.append(temp)
    
     return data_
 
 
 def main_iterator(temp = '/home/agam/Documents/temp', out = 'temp/outF', 
-                 root = '/home/agam/Desktop/', csv_path = '/home/agam/Desktop/ad_project/data/initial_only/initial_only.csv'):
-    '''
-    Main preprocessing loop. Handel data paths for loading and call the preprocessing pipeline for each usable patient
-    Parameters
-    ----------
-    temp : string, optional
-        temp folder full path. The default is '/home/agam/Documents/temp'.
-    out : string, optional
-        output folder relative path. The default is 'temp/outF'.
-    root : string, optional
-        root folder full path. The default is '/home/agam/Desktop/'.
-    csv_path : string, optional
-        csv file full path. The default is '/home/agam/Desktop/ad_project/data/initial_only/initial_only.csv'.
-    Returns
-    -------
-    None.
-    '''
-    password = pyautogui.password(text="[sudo] password for agam: ", title='', default='', mask='*')
-    
+                 root = '/home/agam/Desktop/', matched = '/home/agam/Desktop/ad_project/data/final_adni/matched.csv', 
+                 pet = '/home/agam/Desktop/ad_project/data/final_adni/pet_tau.csv', mri = '/home/agam/Desktop/ad_project/data/final_adni/mri.csv'):
     #CSV LOGIC     
-    csv = pd.read_csv(csv_path)
-    csv = csv.sort_values(by=["Subject"], ascending=True)   
+    csv = []
+    csv.append(pd.read_csv(matched))
+    csv.append(pd.read_csv(mri))
+    csv.append(pd.read_csv(pet))
     adrs = get_data_address_list(csv)
+    
+    password = pyautogui.password(text="[sudo] password for agam: ", title='', default='', mask='*')
       
     #preprocessing loop
     i = 0
