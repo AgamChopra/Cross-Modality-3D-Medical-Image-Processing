@@ -36,6 +36,7 @@ def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_f
     '''
     usable_subjects = get_usable_subjects(matched_csv)    
     data = {}
+    groups = []
     for ids in usable_subjects:
         val = {}      
         mri = mri_csv.loc[mri_csv['Subject'] == ids].to_numpy()    
@@ -52,12 +53,26 @@ def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_f
         for b in pet:
             if b[6] == 'PET':
                 val['PET'] = b[7].replace(':', '_').replace(' ', '_').replace('/','_').replace('(','_').replace(')','_').replace('_Tau','') 
+                group = b[2]
         
         try:
             data[ids] = [val['T1'],val['T2'],val['PET']]
+            groups.append(group)
         except:
             continue
     
+    print(groups, len(groups))
+    ad = 0
+    mci = 0
+    cn = 0
+    for p in groups:
+        if p == 'AD':
+            ad += 1
+        elif p == 'MCI':
+            mci += 1
+        else:
+            cn += 1
+    print(ad,mci,cn)
     return data
 
 
@@ -103,7 +118,7 @@ def main_iterator(temp = '/home/agam/Documents/temp', out = 'temp/outF',
     csv.append(pd.read_csv(mri))
     csv.append(pd.read_csv(pet))
     adrs = get_data_address_list(csv)
-    print(adrs,len(adrs))
+    #print(adrs,len(adrs))
     
 
 if __name__ == "__main__":

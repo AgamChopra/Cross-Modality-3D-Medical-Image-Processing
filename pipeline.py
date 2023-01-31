@@ -630,7 +630,11 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         try:
             PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET), add_only = False)
         except:
-            PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = False)
+            try:
+                PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = False)
+            except:
+                PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_'), add_only = False)
+        
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
         
         #print('loading T2')
@@ -756,7 +760,7 @@ def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_f
                         
         for b in pet:
             if b[6] == 'PET':
-                val['PET'] = b[7].replace(':', '_').replace(' ', '_').replace('/','_').replace('(','_').replace(')','_').replace('_Tau','') 
+                val['PET'] = b[7].replace(':', '_').replace(' ', '_').replace('/','_').replace('(','_').replace(')','_').replace('_Tau','').replace('\'','').replace('\"','')
         
         try:
             data[ids] = [val['T1'],val['T2'],val['PET']]
