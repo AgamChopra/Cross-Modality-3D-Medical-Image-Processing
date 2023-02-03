@@ -634,6 +634,10 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
                 PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = False)
             except:
                 PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_'), add_only = False)
+# =============================================================================
+#                     pet_fold = os.listdir(folder_path)[0]
+#                     PET, PET_meta = PET_average(os.path.join(folder_path, pet_fold), add_only = False)
+# =============================================================================
         
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
         
@@ -819,6 +823,7 @@ def main_iterator(temp = '/home/agam/Documents/temp', out = 'temp/outF',
     print('Preprocessing initiated for %d patients...'%(len(adrs)))
     
     for adr in tqdm(adrs):
+        #print(adr)
         T1 = adr[0]
         T2 = adr[1]
         PET = adr[2]      
