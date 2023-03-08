@@ -566,8 +566,8 @@ def affine_register(fixed, moving, prt = False, bins = 50, sp = 0.01):
     registration_method.SetInterpolator(sitk.sitkNearestNeighbor)
     
     # Optimizer settings.
-    registration_method.SetOptimizerAsGradientDescent(learningRate=1.0,numberOfIterations=1000,
-                                                      convergenceMinimumValue=1e-6,
+    registration_method.SetOptimizerAsGradientDescent(learningRate=.1,numberOfIterations=5000,
+                                                      convergenceMinimumValue=1e-8,
                                                       convergenceWindowSize=10)
     registration_method.SetOptimizerScalesFromPhysicalShift()#Scale voxel translation(mm) and rotation(theta) correctly
     
