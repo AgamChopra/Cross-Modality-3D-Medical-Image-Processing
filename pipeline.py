@@ -592,9 +592,14 @@ def affine_register(fixed, moving, prt = False, bins = 50, sp = 0.01):
     moving_resampled = sitk.GetArrayFromImage(moving_resampled)
     
     return moving_resampled
+
+
+def reg_to_mni(t1, t2, pet):
+    
+    return t1, t2, pet
     
 
-def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder,idx,password,temp_folder):  
+def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder,idx,password,temp_folder,meta=None):  
     '''
     Complete preprocessing pipeline for ADNI3 dataset for multi-modal(T1,T2_FLAIR) MRI and PET registration.
     Parameters
@@ -634,12 +639,13 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
                 PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_Tau'), add_only = False)
             except:
                 PET, PET_meta = PET_average(os.path.join(folder_path,rpath_PET + '_'), add_only = False)
-# =============================================================================
-#                     pet_fold = os.listdir(folder_path)[0]
-#                     PET, PET_meta = PET_average(os.path.join(folder_path, pet_fold), add_only = False)
-# =============================================================================
         
         PET, PET_meta = np.squeeze(PET), PET_meta[-1]
+        img = nib.Nifti1Image(PET, affine = np.eye(4))
+        if meta is None:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'PET_%d_raw_avg.nii'%(idx))))
+        else:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'PET_%d_raw_avg_%s_%s_%s_%s.nii'%(idx,meta[0],meta[1],meta[2],meta[3]))))
         
         #print('loading T2')
         A = os.path.join(folder_path,rpath_T2)
@@ -649,6 +655,10 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         #print(D)
         img = nib.load(D)
         T2, T2_meta = np.squeeze(img.get_fdata()), img.header
+        if meta is None:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'T2_%d_raw.nii'%(idx))))
+        else:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'T2_%d_raw_%s_%s_%s_%s.nii'%(idx,meta[0],meta[1],meta[2],meta[3]))))
         
         #print('loading T1')
         A = os.path.join(folder_path,rpath_T1)
@@ -657,7 +667,11 @@ def preprocess_pipeline(folder_path,rpath_T1,rpath_T2,rpath_PET,rpath_out_folder
         D = os.path.join(C, os.listdir(C)[0])
         #print(D)
         img = nib.load(D)
-        T1, T1_meta = np.squeeze(img.get_fdata()), img.header
+        T1, T1_meta = np.squeeze(img.get_fdata()), img.header  
+        if meta is None:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'T1_%d_raw.nii'%(idx))))
+        else:
+            nib.save(img, os.path.join(folder_path,os.path.join(rpath_out_folder,'T1_%d_raw_%s_%s_%s_%s.nii'%(idx,meta[0],meta[1],meta[2],meta[3]))))
     
         #Resample T1, T2, PET to approx (1mm x 1mm x 1mm) voxel grid
         PET = resampleA2B(PET,PET_meta.get_zooms()[:-1]) 
@@ -749,10 +763,12 @@ def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_f
     '''
     usable_subjects = get_usable_subjects(matched_csv)    
     data = {}
+    
     for ids in usable_subjects:
         val = {}      
         mri = mri_csv.loc[mri_csv['Subject'] == ids].to_numpy()    
-        pet = pet_csv.loc[pet_csv['Subject'] == ids].to_numpy()    
+        pet = pet_csv.loc[pet_csv['Subject'] == ids].to_numpy()   
+        meta_data = [ids, pet[0,2], pet[0,3], pet[0,4]]
         
         for b in mri:
             if b[6] == 'MRI':
@@ -767,7 +783,7 @@ def generate_address_dict(matched_csv, mri_csv, pet_csv):#{'PID':[T1_folder,T2_f
                 val['PET'] = b[7].replace(':', '_').replace(' ', '_').replace('/','_').replace('(','_').replace(')','_').replace('_Tau','').replace('\'','').replace('\"','')
         
         try:
-            data[ids] = [val['T1'],val['T2'],val['PET']]
+            data[ids] = [val['T1'],val['T2'],val['PET'],meta_data]
         except:
             continue
     
@@ -796,19 +812,20 @@ def get_data_address_list(csv=[], mri_path = 'ad_project/data/final_adni/mri/ADN
     
     for pid in keys:
         temp = []  
-        for i in range(len(data[pid])):
+        for i in range(len(data[pid])-1):
             if i < 2:
                 temp.append(mri_path + pid + '/' + data[pid][i])
             else:
                 temp.append(pet_path + pid + '/' + data[pid][i])
-        data_.append(temp)
+        data_.append([temp, data[pid][-1]])
    
     return data_
 
 
 def main_iterator(temp = '/home/agam/Documents/temp', out = 'temp/outF', 
                  root = '/home/agam/Desktop/', matched = '/home/agam/Desktop/ad_project/data/final_adni/matched.csv', 
-                 pet = '/home/agam/Desktop/ad_project/data/final_adni/pet_tau.csv', mri = '/home/agam/Desktop/ad_project/data/final_adni/mri.csv'):
+                 pet = '/home/agam/Desktop/ad_project/data/final_adni/pet_tau.csv', mri = '/home/agam/Desktop/ad_project/data/final_adni/mri.csv',
+                 check_meta = True):
     #CSV LOGIC     
     csv = []
     csv.append(pd.read_csv(matched))
@@ -816,25 +833,30 @@ def main_iterator(temp = '/home/agam/Documents/temp', out = 'temp/outF',
     csv.append(pd.read_csv(pet))
     adrs = get_data_address_list(csv)
     
-    password = pyautogui.password(text="[sudo] password for agam: ", title='', default='', mask='*')
-      
-    #preprocessing loop
-    i = 0
-    print('Preprocessing initiated for %d patients...'%(len(adrs)))
-    
-    for adr in tqdm(adrs):
-        #print(adr)
-        T1 = adr[0]
-        T2 = adr[1]
-        PET = adr[2]      
-        flag = preprocess_pipeline('/home/agam/Desktop/',T1,T2,PET,out,i,password,temp)      
-        i += 1
-        if flag == 0:
-            print('ERROR')
-            break
+    if check_meta:
+        [print(a) for a in adrs]
+        print(len(adrs))
         
-    print('...done!')
+    else:
+        password = pyautogui.password(text="[sudo] password for agam: ", title='', default='', mask='*')
+          
+        #preprocessing loop
+        i = 0
+        print('Preprocessing initiated for %d patients...'%(len(adrs)))
+        
+        for adr in tqdm(adrs):      
+            T1 = adr[0][0]
+            T2 = adr[0][1]
+            PET = adr[0][2]
+            META = adr[1]
+            flag = preprocess_pipeline('/home/agam/Desktop/',T1,T2,PET,out,i,password,temp,meta=META)      
+            i += 1
+            if flag == 0:
+                print('ERROR')
+                break
+            
+        print('...done!')
 
 
 if __name__ == "__main__":
-    main_iterator()
+    main_iterator(check_meta=False)
